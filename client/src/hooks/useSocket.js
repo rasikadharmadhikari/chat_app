@@ -10,9 +10,10 @@ const useSocket = (token) => {
     if (!token) return;
 
     if (!socketInstance) {
-      socketInstance = io('http://localhost:5000', {
-        auth: { token },
-      });
+      socketInstance = io(
+        import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000',
+        { auth: { token } }
+      );
     }
 
     socketRef.current = socketInstance;
