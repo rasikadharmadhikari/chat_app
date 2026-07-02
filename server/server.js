@@ -9,10 +9,10 @@ const authRoutes = require('./src/routes/authRoutes');
 const conversationRoutes = require('./src/routes/conversationRoutes');
 const messageRoutes = require('./src/routes/messageRoutes');
 const uploadRoutes = require('./src/routes/uploadRoutes');
+const userRoutes = require('./src/routes/userRoutes');
 
 const app = express();
 const server = http.createServer(app);
-const userRoutes = require('./src/routes/userRoutes');
 
 connectDB();
 
@@ -20,8 +20,27 @@ require('./src/models/User');
 require('./src/models/Conversation');
 require('./src/models/Message');
 
-// Middleware must be registered BEFORE routes
-app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+const allowedOrigins = [
+  'https://chat-app-ashen-five-13.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+}));
+
+app.options('*', cors());
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -29,7 +48,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/upload', uploadRoutes);
-app.use('/api/users', userRoutes); 
+app.use('/api/users', userRoutes);
 
 app.get('/', (req, res) => {
   res.send('Server is running');

@@ -7,11 +7,15 @@ const Conversation = require('../models/Conversation');
 
 module.exports = (server) => {
   const io = new Server(server, {
-    cors: {
-      origin: process.env.CLIENT_URL,
-      credentials: true,
-    },
-  });
+  cors: {
+    origin: [
+      'https://chat-app-ashen-five-13.vercel.app',
+      'http://localhost:5173',
+    ],
+    credentials: true,
+    methods: ['GET', 'POST'],
+  },
+});
 
   const pubClient = redisClient.duplicate();
   const subClient = redisClient.duplicate();
