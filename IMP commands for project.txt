@@ -2,3 +2,6 @@ Redis=rasikamd08@gmail.com
 Cloudnary=rasikamd08@gmail.com
 mongodb=rasikamd08@gmail.com
 onrender=rasika08092005@gmail.com
+vercel=rasika08092005@gmail.com
+vercel link=https://chat-app-ashen-five-13.vercel.app/login
+onrender=https://chat-app-server-ka0j.onrender.com/
