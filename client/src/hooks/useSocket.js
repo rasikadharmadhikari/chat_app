@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 
+const PRODUCTION_SOCKET_URL = 'https://chat-app-server-ka0j.onrender.com';
+
 let socketInstance = null;
 
 const useSocket = (token) => {
@@ -11,7 +13,7 @@ const useSocket = (token) => {
 
     if (!socketInstance) {
       socketInstance = io(
-        import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000',
+        import.meta.env.VITE_SOCKET_URL || PRODUCTION_SOCKET_URL,
         { auth: { token } }
       );
     }

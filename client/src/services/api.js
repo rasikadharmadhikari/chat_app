@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+const PRODUCTION_URL = 'https://chat-app-server-ka0j.onrender.com/api';
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  baseURL: import.meta.env.VITE_API_URL || PRODUCTION_URL,
   withCredentials: true,
 });
 
