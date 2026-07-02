@@ -1,0 +1,4 @@
+Redis=rasikamd08@gmail.com
+Cloudnary=rasikamd08@gmail.com
+mongodb=rasikamd08@gmail.com
+onrender=rasika08092005@gmail.com
