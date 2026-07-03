@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import SearchBar from './SearchBar';
@@ -7,25 +7,30 @@ export default function Sidebar({ onSelectConversation, selectedId, isOnline, so
   const [conversations, setConversations] = useState([]);
   const { user, logout } = useAuth();
 
-  const fetchConversations = async () => {
+  const fetchConversations = useCallback(async () => {
     try {
       const res = await api.get('/conversations');
       setConversations(res.data);
     } catch (err) {
       console.error('Failed to fetch conversations:', err);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchConversations();
-  }, []);
+  }, [fetchConversations]);
 
   useEffect(() => {
     if (!socket) return;
 
     socket.on('newMessage', (msg) => {
-      setConversations((prev) =>
-        prev.map((conv) => {
+      setConversations((prev) => {
+        const exists = prev.find((c) => c._id === msg.conversationId);
+        if (!exists) {
+          fetchConversations();
+          return prev;
+        }
+        return prev.map((conv) => {
           if (conv._id === msg.conversationId) {
             const isSelected = conv._id === selectedId;
             return {
@@ -35,8 +40,8 @@ export default function Sidebar({ onSelectConversation, selectedId, isOnline, so
             };
           }
           return conv;
-        })
-      );
+        });
+      });
     });
 
     socket.on('messagesRead', ({ conversationId }) => {
@@ -51,13 +56,18 @@ export default function Sidebar({ onSelectConversation, selectedId, isOnline, so
       socket.off('newMessage');
       socket.off('messagesRead');
     };
-  }, [socket, selectedId]);
+  }, [socket, selectedId, fetchConversations]);
 
-  const handleSelectConversation = (conv) => {
+  const handleSelectConversation = (conv, isNew = false) => {
+    if (isNew) {
+      setConversations((prev) => {
+        const exists = prev.find((c) => c._id === conv._id);
+        if (!exists) return [{ ...conv, unreadCount: 0 }, ...prev];
+        return prev;
+      });
+    }
     setConversations((prev) =>
-      prev.map((c) =>
-        c._id === conv._id ? { ...c, unreadCount: 0 } : c
-      )
+      prev.map((c) => c._id === conv._id ? { ...c, unreadCount: 0 } : c)
     );
     onSelectConversation(conv);
   };
@@ -70,10 +80,7 @@ export default function Sidebar({ onSelectConversation, selectedId, isOnline, so
     <div className="w-72 bg-gray-900 text-white h-screen flex flex-col">
       <div className="p-4 border-b border-gray-700 flex justify-between items-center">
         <h2 className="text-lg font-bold">Chats</h2>
-        <button
-          onClick={logout}
-          className="text-xs text-gray-400 hover:text-white"
-        >
+        <button onClick={logout} className="text-xs text-gray-400 hover:text-white">
           Logout
         </button>
       </div>
@@ -87,7 +94,10 @@ export default function Sidebar({ onSelectConversation, selectedId, isOnline, so
 
       <div className="flex-1 overflow-y-auto">
         {conversations.length === 0 ? (
-          <p className="text-gray-400 text-sm p-4">No conversations yet.</p>
+          <div className="p-4 text-center">
+            <p className="text-gray-400 text-sm">No conversations yet.</p>
+            <p className="text-gray-500 text-xs mt-1">Search for a user to start chatting!</p>
+          </div>
         ) : (
           conversations.map((conv) => {
             const other = getOtherParticipant(conv);
@@ -107,11 +117,7 @@ export default function Sidebar({ onSelectConversation, selectedId, isOnline, so
                   <div className="relative">
                     <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
                       {other?.avatar ? (
-                        <img
-                          src={other.avatar}
-                          alt={other.name}
-                          className="w-full h-full rounded-full object-cover"
-                        />
+                        <img src={other.avatar} alt={other.name} className="w-full h-full rounded-full object-cover" />
                       ) : (
                         other?.name?.charAt(0).toUpperCase()
                       )}

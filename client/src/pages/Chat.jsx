@@ -29,9 +29,8 @@ export default function Chat() {
           <div className="flex-1 flex items-center justify-center h-full bg-gray-100">
             <div className="text-center text-gray-400">
               <p className="text-4xl mb-4">💬</p>
-              <p className="text-lg font-semibold">
-                Select a conversation to start chatting
-              </p>
+              <p className="text-lg font-semibold">Select a conversation to start chatting</p>
+              <p className="text-sm mt-2">Search for a user in the sidebar to begin</p>
             </div>
           </div>
         )}

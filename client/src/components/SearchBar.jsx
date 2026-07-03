@@ -22,7 +22,6 @@ export default function SearchBar({ onStartConversation }) {
   const handleSearch = (e) => {
     const value = e.target.value;
     setQuery(value);
-
     clearTimeout(debounceRef.current);
 
     if (value.trim().length < 2) {
@@ -51,7 +50,7 @@ export default function SearchBar({ onStartConversation }) {
         participantId: user._id,
         isGroup: false,
       });
-      onStartConversation(res.data);
+      onStartConversation(res.data, true);
       setQuery('');
       setResults([]);
       setShowResults(false);
@@ -72,17 +71,13 @@ export default function SearchBar({ onStartConversation }) {
           placeholder="Search users..."
           className="bg-transparent text-white text-sm outline-none w-full placeholder-gray-400"
         />
-        {loading && (
-          <span className="text-gray-400 text-xs">...</span>
-        )}
+        {loading && <span className="text-gray-400 text-xs">...</span>}
       </div>
 
       {showResults && (
         <div className="absolute left-3 right-3 top-full mt-1 bg-gray-800 rounded-lg shadow-xl z-50 overflow-hidden border border-gray-700">
           {results.length === 0 ? (
-            <p className="text-gray-400 text-sm p-3 text-center">
-              No users found
-            </p>
+            <p className="text-gray-400 text-sm p-3 text-center">No users found</p>
           ) : (
             results.map((user) => (
               <div
@@ -92,19 +87,13 @@ export default function SearchBar({ onStartConversation }) {
               >
                 <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
                   {user.avatar ? (
-                    <img
-                      src={user.avatar}
-                      alt={user.name}
-                      className="w-full h-full rounded-full object-cover"
-                    />
+                    <img src={user.avatar} alt={user.name} className="w-full h-full rounded-full object-cover" />
                   ) : (
                     user.name.charAt(0).toUpperCase()
                   )}
                 </div>
                 <div>
-                  <p className="text-white text-sm font-semibold">
-                    {user.name}
-                  </p>
+                  <p className="text-white text-sm font-semibold">{user.name}</p>
                   <p className="text-gray-400 text-xs">{user.email}</p>
                 </div>
                 <div className={`ml-auto w-2 h-2 rounded-full flex-shrink-0 ${

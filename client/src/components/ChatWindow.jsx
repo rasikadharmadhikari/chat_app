@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+
 export default function ChatWindow({ conversation, socket, isOnline }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -37,6 +38,19 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
       socket.on('userStopTyping', ({ userId }) => {
         if (userId !== user.id) setIsTyping(false);
       });
+
+      socket.on('messagesRead', ({ conversationId }) => {
+        if (conversationId === conversation._id) {
+          setMessages((prev) =>
+            prev.map((msg) => ({
+              ...msg,
+              readBy: Array.isArray(msg.readBy)
+                ? [...new Set([...msg.readBy, otherUser?._id])]
+                : msg.readBy,
+            }))
+          );
+        }
+      });
     }
 
     return () => {
@@ -44,6 +58,7 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
         socket.off('newMessage');
         socket.off('userTyping');
         socket.off('userStopTyping');
+        socket.off('messagesRead');
       }
     };
   }, [conversation._id, socket]);
@@ -108,35 +123,37 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
     <div className="flex-1 flex flex-col h-screen bg-gray-100">
 
       {/* Header */}
-<div className="bg-white p-4 shadow flex items-center gap-3">
-  <div className="relative">
-    <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
-      {otherUser?.avatar ? (
-        <img
-          src={otherUser.avatar}
-          alt={otherUser.name}
-          className="w-full h-full rounded-full object-cover"
-        />
-      ) : (
-        otherUser?.name?.charAt(0).toUpperCase()
-      )}
-    </div>
-    <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
-      isOnline(otherUser?._id) ? 'bg-green-400' : 'bg-gray-400'
-    }`} />
-  </div>
-  <div>
-    <p className="font-semibold">{otherUser?.name}</p>
-    <p className="text-xs text-gray-500">
-      {isOnline(otherUser?._id) ? '🟢 Online' : '⚫ Offline'}
-    </p>
-  </div>
-</div>
+      <div className="bg-white p-4 shadow flex items-center gap-3">
+        <div className="relative">
+          <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
+            {otherUser?.avatar ? (
+              <img
+                src={otherUser.avatar}
+                alt={otherUser.name}
+                className="w-full h-full rounded-full object-cover"
+              />
+            ) : (
+              otherUser?.name?.charAt(0).toUpperCase()
+            )}
+          </div>
+          <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+            isOnline(otherUser?._id) ? 'bg-green-400' : 'bg-gray-400'
+          }`} />
+        </div>
+        <div>
+          <p className="font-semibold">{otherUser?.name}</p>
+          <p className="text-xs text-gray-500">
+            {isOnline(otherUser?._id) ? '🟢 Online' : '⚫ Offline'}
+          </p>
+        </div>
+      </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
         {messages.map((msg) => {
           const isOwn = msg.sender._id === user.id || msg.sender === user.id;
+          const isRead = Array.isArray(msg.readBy) && msg.readBy.length > 1;
+
           return (
             <div
               key={msg._id}
@@ -158,11 +175,22 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
                   />
                 ) : null}
                 {msg.content}
-                <p className={`text-xs mt-1 ${isOwn ? 'text-blue-200' : 'text-gray-400'}`}>
+                <p className={`text-xs mt-1 flex items-center gap-1 ${
+                  isOwn ? 'justify-end text-blue-200' : 'text-gray-400'
+                }`}>
                   {new Date(msg.createdAt).toLocaleTimeString([], {
                     hour: '2-digit',
                     minute: '2-digit',
                   })}
+                  {isOwn && (
+                    <span>
+                      {isRead ? (
+                        <span className="text-blue-300 font-bold">✓✓</span>
+                      ) : (
+                        <span className="text-blue-200">✓</span>
+                      )}
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -208,7 +236,6 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
           Send
         </button>
       </div>
-
     </div>
   );
 }
