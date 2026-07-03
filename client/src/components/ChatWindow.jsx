@@ -6,6 +6,7 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [hoveredMessage, setHoveredMessage] = useState(null);
   const { user } = useAuth();
   const bottomRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -51,6 +52,16 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
           );
         }
       });
+
+      socket.on('messageDeleted', ({ messageId }) => {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg._id === messageId
+              ? { ...msg, content: 'This message was deleted', isDeleted: true, attachments: [] }
+              : msg
+          )
+        );
+      });
     }
 
     return () => {
@@ -59,6 +70,7 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
         socket.off('userTyping');
         socket.off('userStopTyping');
         socket.off('messagesRead');
+        socket.off('messageDeleted');
       }
     };
   }, [conversation._id, socket]);
@@ -66,6 +78,15 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const handleDeleteMessage = (messageId) => {
+    if (!socket) return;
+    socket.emit('deleteMessage', {
+      messageId,
+      conversationId: conversation._id,
+    });
+    setHoveredMessage(null);
+  };
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
@@ -93,19 +114,16 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
 
   const handleSend = () => {
     if (!newMessage.trim() || !socket) return;
-
     socket.emit('sendMessage', {
       conversationId: conversation._id,
       content: newMessage.trim(),
     });
-
     setNewMessage('');
     socket.emit('stopTyping', { conversationId: conversation._id });
   };
 
   const handleTyping = (e) => {
     setNewMessage(e.target.value);
-
     if (socket) {
       socket.emit('typing', { conversationId: conversation._id });
       clearTimeout(typingTimeoutRef.current);
@@ -122,98 +140,116 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
   return (
     <div className="flex-1 flex flex-col h-screen bg-gray-100">
 
-     {/* Header */}
-<div className="bg-white p-4 shadow flex items-center gap-3">
-  {conversation.isGroup ? (
-    <div className="flex items-center gap-3">
-      <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold text-lg">
-        👥
+      {/* Header */}
+      <div className="bg-white p-4 shadow flex items-center gap-3">
+        {conversation.isGroup ? (
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold text-lg">
+              👥
+            </div>
+            <div>
+              <p className="font-semibold">{conversation.groupName}</p>
+              <p className="text-xs text-gray-500">
+                {conversation.participants.length} members
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold overflow-hidden">
+                {otherUser?.avatar ? (
+                  <img src={otherUser.avatar} alt={otherUser.name} className="w-full h-full object-cover" />
+                ) : (
+                  otherUser?.name?.charAt(0).toUpperCase()
+                )}
+              </div>
+              <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+                isOnline(otherUser?._id) ? 'bg-green-400' : 'bg-gray-400'
+              }`} />
+            </div>
+            <div>
+              <p className="font-semibold">{otherUser?.name}</p>
+              <p className="text-xs text-gray-500">
+                {isOnline(otherUser?._id) ? '🟢 Online' : '⚫ Offline'}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
-      <div>
-        <p className="font-semibold">{conversation.groupName}</p>
-        <p className="text-xs text-gray-500">
-          {conversation.participants.length} members
-        </p>
-      </div>
-    </div>
-  ) : (
-    <div className="flex items-center gap-3">
-      <div className="relative">
-        <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
-          {otherUser?.avatar ? (
-            <img
-              src={otherUser.avatar}
-              alt={otherUser.name}
-              className="w-full h-full rounded-full object-cover"
-            />
-          ) : (
-            otherUser?.name?.charAt(0).toUpperCase()
-          )}
-        </div>
-        <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
-          isOnline(otherUser?._id) ? 'bg-green-400' : 'bg-gray-400'
-        }`} />
-      </div>
-      <div>
-        <p className="font-semibold">{otherUser?.name}</p>
-        <p className="text-xs text-gray-500">
-          {isOnline(otherUser?._id) ? '🟢 Online' : '⚫ Offline'}
-        </p>
-      </div>
-    </div>
-  )}
-</div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
         {messages.map((msg) => {
           const isOwn = msg.sender._id === user.id || msg.sender === user.id;
           const isRead = Array.isArray(msg.readBy) && msg.readBy.length > 1;
+          const isDeleted = msg.isDeleted;
 
           return (
             <div
               key={msg._id}
               className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+              onMouseEnter={() => !isDeleted && isOwn && setHoveredMessage(msg._id)}
+              onMouseLeave={() => setHoveredMessage(null)}
             >
-              <div
-                className={`max-w-xs px-4 py-2 rounded-2xl text-sm ${
-                  isOwn
-                    ? 'bg-blue-600 text-white rounded-br-none'
-                    : 'bg-white text-gray-800 shadow rounded-bl-none'
-                }`}
-              >
-                {msg.attachments && msg.attachments.length > 0 ? (
-                  <img
-                    src={msg.attachments[0]}
-                    alt="attachment"
-                    className="rounded-lg max-w-full mb-1 cursor-pointer"
-                    onClick={() => window.open(msg.attachments[0], '_blank')}
-                  />
-                ) : null}
-                {msg.content}
-                <p className={`text-xs mt-1 flex items-center gap-1 ${
-                  isOwn ? 'justify-end text-blue-200' : 'text-gray-400'
-                }`}>
-                  {new Date(msg.createdAt).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                  {isOwn && (
-                    <span>
-                      {isRead ? (
-                        <span className="text-blue-300 font-bold">✓✓</span>
-                      ) : (
-                        <span className="text-blue-200">✓</span>
-                      )}
-                    </span>
+              <div className="relative flex items-end gap-1">
+
+                {/* Delete button — shows on hover for own messages */}
+                {isOwn && hoveredMessage === msg._id && !isDeleted && (
+                  <button
+                    onClick={() => handleDeleteMessage(msg._id)}
+                    className="text-gray-400 hover:text-red-500 text-xs mb-2 transition"
+                    title="Delete message"
+                  >
+                    🗑️
+                  </button>
+                )}
+
+                <div
+                  className={`max-w-xs px-4 py-2 rounded-2xl text-sm ${
+                    isDeleted
+                      ? 'bg-gray-200 text-gray-400 italic'
+                      : isOwn
+                      ? 'bg-blue-600 text-white rounded-br-none'
+                      : 'bg-white text-gray-800 shadow rounded-bl-none'
+                  }`}
+                >
+                  {!isDeleted && msg.attachments && msg.attachments.length > 0 && (
+                    <img
+                      src={msg.attachments[0]}
+                      alt="attachment"
+                      className="rounded-lg max-w-full mb-1 cursor-pointer"
+                      onClick={() => window.open(msg.attachments[0], '_blank')}
+                    />
                   )}
-                </p>
+
+                  {msg.content}
+
+                  {!isDeleted && (
+                    <p className={`text-xs mt-1 flex items-center gap-1 ${
+                      isOwn ? 'justify-end text-blue-200' : 'text-gray-400'
+                    }`}>
+                      {new Date(msg.createdAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                      {isOwn && (
+                        <span>
+                          {isRead ? (
+                            <span className="text-blue-300 font-bold">✓✓</span>
+                          ) : (
+                            <span className="text-blue-200">✓</span>
+                          )}
+                        </span>
+                      )}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           );
         })}
 
-        {/* Typing indicator */}
         {isTyping && (
           <div className="flex justify-start">
             <div className="bg-white px-4 py-2 rounded-2xl text-sm text-gray-500 shadow">
