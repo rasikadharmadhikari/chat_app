@@ -1,4 +1,5 @@
 const Conversation = require('../models/Conversation');
+const Message = require('../models/Message');
 
 const createConversation = async ({ participants, isGroup, groupName }) => {
   if (!isGroup && participants.length === 2) {
@@ -18,10 +19,23 @@ const createConversation = async ({ participants, isGroup, groupName }) => {
 };
 
 const getUserConversations = async (userId) => {
-  return Conversation.find({ participants: userId })
+  const conversations = await Conversation.find({ participants: userId })
     .populate('participants', 'name email avatar status')
     .populate('lastMessage')
     .sort({ updatedAt: -1 });
+
+  const conversationsWithUnread = await Promise.all(
+    conversations.map(async (conv) => {
+      const unreadCount = await Message.countDocuments({
+        conversationId: conv._id,
+        readBy: { $nin: [userId] },
+        sender: { $ne: userId },
+      });
+      return { ...conv.toObject(), unreadCount };
+    })
+  );
+
+  return conversationsWithUnread;
 };
 
 module.exports = { createConversation, getUserConversations };

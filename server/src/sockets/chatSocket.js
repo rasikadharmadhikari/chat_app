@@ -37,10 +37,21 @@ module.exports = (server) => {
   io.on('connection', (socket) => {
     console.log('User connected:', socket.userId);
 
-    socket.on('joinConversation', (conversationId) => {
-      socket.join(conversationId);
-      console.log('Socket', socket.id, 'joined room:', conversationId);
-    });
+   socket.on('joinConversation', async (conversationId) => {
+  socket.join(conversationId);
+  console.log('Socket', socket.id, 'joined room:', conversationId);
+
+  await Message.updateMany(
+    {
+      conversationId,
+      readBy: { $nin: [socket.userId] },
+      sender: { $ne: socket.userId },
+    },
+    { $addToSet: { readBy: socket.userId } }
+  );
+
+  socket.emit('messagesRead', { conversationId });
+});
 
     socket.on('sendMessage', async ({ conversationId, content, attachments }) => {
       console.log('sendMessage event received:', conversationId, content);

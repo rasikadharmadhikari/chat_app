@@ -16,6 +16,7 @@ export default function Chat() {
         onSelectConversation={setSelectedConversation}
         selectedId={selectedConversation?._id}
         isOnline={isOnline}
+        socket={socket}
       />
       <div className="flex-1">
         {selectedConversation ? (
