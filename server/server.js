@@ -9,6 +9,7 @@ const conversationRoutes = require('./src/routes/conversationRoutes');
 const messageRoutes = require('./src/routes/messageRoutes');
 const uploadRoutes = require('./src/routes/uploadRoutes');
 const userRoutes = require('./src/routes/userRoutes');
+const profileRoutes = require('./src/routes/profileRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -46,6 +47,7 @@ app.use('/api/conversations', conversationRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/profile', profileRoutes);
 
 app.get('/', (req, res) => {
   res.send('Server is running');

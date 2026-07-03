@@ -3,6 +3,7 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import SearchBar from './SearchBar';
 import CreateGroupModal from './CreateGroupModal';
+import { useNavigate } from 'react-router-dom';
 
 export default function Sidebar({
   onSelectConversation,
@@ -12,7 +13,7 @@ export default function Sidebar({
 }) {
   const [conversations, setConversations] = useState([]);
   const [showGroupModal, setShowGroupModal] = useState(false);
-
+const navigate = useNavigate();
   const { user, logout } = useAuth();
 
   const fetchConversations = useCallback(async () => {
@@ -169,16 +170,22 @@ export default function Sidebar({
           </div>
         </div>
 
-        {/* Logged in user */}
-        <div className="p-3 border-b border-gray-700">
-          <p className="text-sm text-gray-400">
-            Logged in as
-          </p>
-
-          <p className="text-sm font-semibold">
-            {user.name}
-          </p>
-        </div>
+        <div
+  className="p-3 border-b border-gray-700 flex items-center gap-3 cursor-pointer hover:bg-gray-800 transition"
+  onClick={() => navigate('/profile')}
+>
+  <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm overflow-hidden flex-shrink-0">
+    {user.avatar ? (
+      <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+    ) : (
+      user.name?.charAt(0).toUpperCase()
+    )}
+  </div>
+  <div className="flex-1 min-w-0">
+    <p className="text-sm font-semibold truncate">{user.name}</p>
+    <p className="text-xs text-gray-400">View Profile →</p>
+  </div>
+</div>
 
         {/* Search */}
         <SearchBar
