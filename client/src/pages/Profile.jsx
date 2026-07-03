@@ -18,30 +18,34 @@ export default function Profile() {
     const fetchProfile = async () => {
       try {
         const res = await api.get('/profile/me');
-        setName(res.data.name);
-        setEmail(res.data.email);
-        setAvatar(res.data.avatar);
+        setName(res.data.name || '');
+        setEmail(res.data.email || '');
+        setAvatar(res.data.avatar || '');
       } catch (err) {
-        console.error('Failed to fetch profile:', err);
+        console.error('Failed to fetch profile:', err.response?.data || err.message);
+        setError('Failed to load profile. Please try again.');
       }
     };
     fetchProfile();
   }, []);
 
   const handleUpdateName = async () => {
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      setError('Name cannot be empty');
+      return;
+    }
     setLoading(true);
     setMessage('');
     setError('');
     try {
-      const res = await api.put('/profile/me', { name });
-      localStorage.setItem('user', JSON.stringify({
-        ...user,
-        name: res.data.name,
-      }));
-      setMessage('Name updated successfully!');
+      const res = await api.put('/profile/me', { name: name.trim() });
+      const updatedUser = { ...user, name: res.data.name };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      setName(res.data.name);
+      setMessage('✅ Name updated successfully!');
     } catch (err) {
-      setError('Failed to update name');
+      console.error('Update name error:', err.response?.data || err.message);
+      setError(err.response?.data?.message || 'Failed to update name');
     } finally {
       setLoading(false);
     }
@@ -50,6 +54,16 @@ export default function Profile() {
   const handleAvatarUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image must be under 5MB');
+      return;
+    }
 
     setAvatarLoading(true);
     setMessage('');
@@ -62,14 +76,14 @@ export default function Profile() {
       const res = await api.put('/profile/me/avatar', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setAvatar(res.data.avatar);
-      localStorage.setItem('user', JSON.stringify({
-        ...user,
-        avatar: res.data.avatar,
-      }));
-      setMessage('Avatar updated successfully!');
+      const newAvatar = res.data.avatar || '';
+      setAvatar(newAvatar);
+      const updatedUser = { ...user, avatar: newAvatar };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      setMessage('✅ Profile picture updated!');
     } catch (err) {
-      setError('Failed to upload avatar');
+      console.error('Avatar upload error:', err.response?.data || err.message);
+      setError(err.response?.data?.message || 'Failed to upload avatar');
     } finally {
       setAvatarLoading(false);
     }
@@ -90,17 +104,17 @@ export default function Profile() {
         </div>
 
         {message && (
-          <div className="bg-green-50 text-green-600 text-sm p-3 rounded-lg mb-4">
+          <div className="bg-green-50 text-green-700 text-sm p-3 rounded-lg mb-4 border border-green-200">
             {message}
           </div>
         )}
         {error && (
-          <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">
+          <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4 border border-red-200">
             {error}
           </div>
         )}
 
-        {/* Avatar section */}
+        {/* Avatar */}
         <div className="flex flex-col items-center mb-6">
           <div className="relative">
             <div className="w-24 h-24 rounded-full bg-blue-500 flex items-center justify-center text-white text-3xl font-bold overflow-hidden">
@@ -111,25 +125,30 @@ export default function Profile() {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                name?.charAt(0).toUpperCase()
+                name?.charAt(0)?.toUpperCase() || '?'
               )}
             </div>
-            <label className="absolute bottom-0 right-0 bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center cursor-pointer hover:bg-blue-700">
-              {avatarLoading ? '...' : '📷'}
+            <label className="absolute bottom-0 right-0 bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center cursor-pointer hover:bg-blue-700 shadow">
+              {avatarLoading ? (
+                <span className="text-xs">...</span>
+              ) : (
+                <span>📷</span>
+              )}
               <input
                 type="file"
                 className="hidden"
                 accept="image/*"
                 onChange={handleAvatarUpload}
+                disabled={avatarLoading}
               />
             </label>
           </div>
-          <p className="text-sm text-gray-400 mt-2">
-            Click the camera to change photo
+          <p className="text-xs text-gray-400 mt-2">
+            Click 📷 to change profile picture
           </p>
         </div>
 
-        {/* Name section */}
+        {/* Name */}
         <div className="mb-4">
           <label className="text-sm font-semibold text-gray-600 block mb-1">
             Display Name
@@ -139,19 +158,21 @@ export default function Profile() {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleUpdateName()}
               className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500"
+              placeholder="Your name"
             />
             <button
               onClick={handleUpdateName}
               disabled={loading}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 min-w-16"
             >
               {loading ? '...' : 'Save'}
             </button>
           </div>
         </div>
 
-        {/* Email section (read only) */}
+        {/* Email (read only) */}
         <div className="mb-6">
           <label className="text-sm font-semibold text-gray-600 block mb-1">
             Email
@@ -160,17 +181,16 @@ export default function Profile() {
             type="email"
             value={email}
             disabled
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-400"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-400 cursor-not-allowed"
           />
           <p className="text-xs text-gray-400 mt-1">Email cannot be changed</p>
         </div>
 
-        {/* Account info */}
+        {/* Logout */}
         <div className="border-t pt-4">
-          <p className="text-sm text-gray-500 mb-3">Account</p>
           <button
             onClick={logout}
-            className="w-full bg-red-50 text-red-600 border border-red-200 py-2 rounded-lg text-sm font-semibold hover:bg-red-100"
+            className="w-full bg-red-50 text-red-600 border border-red-200 py-2 rounded-lg text-sm font-semibold hover:bg-red-100 transition"
           >
             Logout
           </button>
