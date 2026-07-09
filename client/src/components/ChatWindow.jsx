@@ -79,14 +79,28 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleDeleteMessage = (messageId) => {
-    if (!socket) return;
-    socket.emit('deleteMessage', {
-      messageId,
-      conversationId: conversation._id,
-    });
+  const handleDeleteMessage = async (messageId) => {
+  try {
+    await api.delete(`/messages/${messageId}`);
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg._id === messageId
+          ? { ...msg, content: 'This message was deleted', isDeleted: true, attachments: [] }
+          : msg
+      )
+    );
+    if (socket) {
+      socket.emit('deleteMessage', {
+        messageId,
+        conversationId: conversation._id,
+      });
+    }
     setHoveredMessage(null);
-  };
+  } catch (err) {
+    console.error('Delete failed:', err.response?.data || err.message);
+    alert(err.response?.data?.message || 'Failed to delete message');
+  }
+};
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
@@ -290,4 +304,4 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
       </div>
     </div>
   );
-}
+}  

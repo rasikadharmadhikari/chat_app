@@ -20,7 +20,10 @@ const list = async (req, res) => {
   try {
     const { id } = req.params;
     const { cursor, limit } = req.query;
-    const messages = await getMessages(id, { cursor, limit: Number(limit) || 20 });
+    const messages = await getMessages(id, {
+      cursor,
+      limit: Number(limit) || 20,
+    });
     res.status(200).json(messages);
   } catch (err) {
     res.status(500).json({ message: err.message });
