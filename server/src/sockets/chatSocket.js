@@ -2,8 +2,10 @@ const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const { createAdapter } = require('@socket.io/redis-adapter');
 const redisClient = require('../config/redis');
+
 const Message = require('../models/Message');
 const Conversation = require('../models/Conversation');
+const User = require('../models/User');
 
 module.exports = (server) => {
   const io = new Server(server, {
@@ -42,7 +44,9 @@ module.exports = (server) => {
   io.on('connection', (socket) => {
     console.log('User connected:', socket.userId);
 
+    // ==========================
     // Join Conversation
+    // ==========================
     socket.on('joinConversation', async (conversationId) => {
       try {
         socket.join(conversationId);
@@ -65,39 +69,105 @@ module.exports = (server) => {
       }
     });
 
+    // ==========================
     // Send Message
-    socket.on('sendMessage', async ({ conversationId, content, attachments, replyTo }) => {
-  console.log('sendMessage event received:', conversationId, content);
-  try {
-    const message = await Message.create({
-      conversationId,
-      sender: socket.userId,
-      content,
-      attachments: attachments || [],
-      readBy: [socket.userId],
-      replyTo: replyTo || null,
-    });
+    // ==========================
+    socket.on(
+      'sendMessage',
+      async ({ conversationId, content, attachments, replyTo }) => {
+        console.log('sendMessage event received:', conversationId, content);
 
-    await Conversation.findByIdAndUpdate(conversationId, { lastMessage: message._id });
+        try {
+          const message = await Message.create({
+            conversationId,
+            sender: socket.userId,
+            content,
+            attachments: attachments || [],
+            readBy: [socket.userId],
+            replyTo: replyTo || null,
+          });
 
-    const populatedMessage = await message.populate([
-      { path: 'sender', select: 'name avatar' },
-      {
-        path: 'replyTo',
-        select: 'content sender isDeleted',
-        populate: { path: 'sender', select: 'name' },
-      },
-    ]);
+          await Conversation.findByIdAndUpdate(conversationId, {
+            lastMessage: message._id,
+          });
 
-    console.log('Emitting newMessage to room:', conversationId);
-    io.to(conversationId).emit('newMessage', populatedMessage);
-  } catch (err) {
-    console.error('sendMessage error:', err.message);
-    socket.emit('errorMessage', { message: err.message });
-  }
-});
+          const populatedMessage = await message.populate([
+            {
+              path: 'sender',
+              select: 'name avatar',
+            },
+            {
+              path: 'replyTo',
+              select: 'content sender isDeleted',
+              populate: {
+                path: 'sender',
+                select: 'name',
+              },
+            },
+          ]);
 
+          console.log('Emitting newMessage to room:', conversationId);
+
+          io.to(conversationId).emit('newMessage', populatedMessage);
+        } catch (err) {
+          console.error('sendMessage error:', err.message);
+          socket.emit('errorMessage', {
+            message: err.message,
+          });
+        }
+      }
+    );
+
+    // ==========================
+    // Add / Remove Reaction
+    // ==========================
+    socket.on(
+      'addReaction',
+      async ({ messageId, emoji, conversationId }) => {
+        try {
+          const message = await Message.findById(messageId);
+
+          if (!message) return;
+
+          const existingIndex = message.reactions.findIndex(
+            (reaction) =>
+              reaction.userId.toString() === socket.userId &&
+              reaction.emoji === emoji
+          );
+
+          if (existingIndex !== -1) {
+            // Remove reaction
+            message.reactions.splice(existingIndex, 1);
+          } else {
+            // Add reaction
+            const user = await User.findById(socket.userId).select('name');
+
+            message.reactions.push({
+              emoji,
+              userId: socket.userId,
+              userName: user?.name || 'Unknown',
+            });
+          }
+
+          await message.save();
+
+          io.to(conversationId).emit('reactionUpdated', {
+            messageId,
+            reactions: message.reactions,
+          });
+        } catch (err) {
+          console.error('Reaction error:', err.message);
+
+          socket.emit('errorMessage', {
+            message: err.message,
+          });
+        }
+      }
+    );
+
+    // ==========================
     // Delete Message
+    // ==========================
     socket.on(
       'deleteMessage',
       async ({ messageId, conversationId }) => {
@@ -110,7 +180,6 @@ module.exports = (server) => {
             });
           }
 
-          // Only sender can delete
           if (message.sender.toString() !== socket.userId) {
             return socket.emit('errorMessage', {
               message: 'Cannot delete this message',
@@ -128,12 +197,16 @@ module.exports = (server) => {
             conversationId,
           });
         } catch (err) {
-          socket.emit('errorMessage', { message: err.message });
+          socket.emit('errorMessage', {
+            message: err.message,
+          });
         }
       }
     );
 
+    // ==========================
     // Typing Indicator
+    // ==========================
     socket.on('typing', ({ conversationId }) => {
       socket.to(conversationId).emit('userTyping', {
         userId: socket.userId,
@@ -148,7 +221,9 @@ module.exports = (server) => {
       });
     });
 
+    // ==========================
     // Message Read
+    // ==========================
     socket.on(
       'messageRead',
       async ({ messageId, conversationId }) => {
@@ -164,23 +239,30 @@ module.exports = (server) => {
             userId: socket.userId,
           });
         } catch (err) {
-          socket.emit('errorMessage', { message: err.message });
+          socket.emit('errorMessage', {
+            message: err.message,
+          });
         }
       }
     );
 
-    // User Disconnect
+    // ==========================
+    // Disconnect
+    // ==========================
     socket.on('disconnect', async () => {
       try {
         await redisClient.srem('online_users', socket.userId);
         socket.broadcast.emit('userOffline', socket.userId);
+
         console.log('User disconnected:', socket.userId);
       } catch (err) {
         console.error(err);
       }
     });
 
+    // ==========================
     // Mark User Online
+    // ==========================
     redisClient.sadd('online_users', socket.userId).then(() => {
       socket.broadcast.emit('userOnline', socket.userId);
     });

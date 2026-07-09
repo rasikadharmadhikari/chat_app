@@ -2,12 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
+const EMOJI_LIST = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+
 export default function ChatWindow({ conversation, socket, isOnline }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [hoveredMessage, setHoveredMessage] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(null);
   const { user } = useAuth();
   const bottomRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -65,6 +68,14 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
           )
         );
       });
+
+      socket.on('reactionUpdated', ({ messageId, reactions }) => {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg._id === messageId ? { ...msg, reactions } : msg
+          )
+        );
+      });
     }
 
     return () => {
@@ -74,6 +85,7 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
         socket.off('userStopTyping');
         socket.off('messagesRead');
         socket.off('messageDeleted');
+        socket.off('reactionUpdated');
       }
     };
   }, [conversation._id, socket]);
@@ -82,15 +94,24 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const handleReaction = (messageId, emoji) => {
+    if (!socket) return;
+    socket.emit('addReaction', {
+      messageId,
+      emoji,
+      conversationId: conversation._id,
+    });
+    setShowEmojiPicker(null);
+    setHoveredMessage(null);
+  };
+
   const handleReply = (msg) => {
     setReplyingTo(msg);
     inputRef.current?.focus();
     setHoveredMessage(null);
   };
 
-  const handleCancelReply = () => {
-    setReplyingTo(null);
-  };
+  const handleCancelReply = () => setReplyingTo(null);
 
   const handleDeleteMessage = async (messageId) => {
     try {
@@ -110,7 +131,6 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
       }
       setHoveredMessage(null);
     } catch (err) {
-      console.error('Delete failed:', err.response?.data || err.message);
       alert(err.response?.data?.message || 'Failed to delete message');
     }
   };
@@ -118,15 +138,12 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     const formData = new FormData();
     formData.append('file', file);
-
     try {
       const res = await api.post('/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-
       if (socket) {
         socket.emit('sendMessage', {
           conversationId: conversation._id,
@@ -143,13 +160,11 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
 
   const handleSend = () => {
     if (!newMessage.trim() || !socket) return;
-
     socket.emit('sendMessage', {
       conversationId: conversation._id,
       content: newMessage.trim(),
       replyTo: replyingTo?._id || null,
     });
-
     setNewMessage('');
     setReplyingTo(null);
     socket.emit('stopTyping', { conversationId: conversation._id });
@@ -176,6 +191,15 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
     return msg.sender.name || otherUser?.name || 'Unknown';
   };
 
+  const groupReactions = (reactions = []) => {
+    const grouped = {};
+    reactions.forEach((r) => {
+      if (!grouped[r.emoji]) grouped[r.emoji] = [];
+      grouped[r.emoji].push(r.userName);
+    });
+    return grouped;
+  };
+
   return (
     <div className="flex-1 flex flex-col h-screen bg-gray-100">
 
@@ -183,14 +207,10 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
       <div className="bg-white p-4 shadow flex items-center gap-3">
         {conversation.isGroup ? (
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold text-lg">
-              👥
-            </div>
+            <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold text-lg">👥</div>
             <div>
               <p className="font-semibold">{conversation.groupName}</p>
-              <p className="text-xs text-gray-500">
-                {conversation.participants.length} members
-              </p>
+              <p className="text-xs text-gray-500">{conversation.participants.length} members</p>
             </div>
           </div>
         ) : (
@@ -218,24 +238,66 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
+      <div
+        className="flex-1 overflow-y-auto p-4 flex flex-col gap-3"
+        onClick={() => { setShowEmojiPicker(null); }}
+      >
         {messages.map((msg) => {
           const isOwn = msg.sender._id === user.id || msg.sender === user.id;
           const isRead = Array.isArray(msg.readBy) && msg.readBy.length > 1;
           const isDeleted = msg.isDeleted;
+          const groupedReactions = groupReactions(msg.reactions);
 
           return (
             <div
               key={msg._id}
               className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
               onMouseEnter={() => !isDeleted && setHoveredMessage(msg._id)}
-              onMouseLeave={() => setHoveredMessage(null)}
+              onMouseLeave={() => {
+                setHoveredMessage(null);
+              }}
             >
               <div className="relative flex items-end gap-1 max-w-xs">
 
-                {/* Action buttons on hover */}
+                {/* Action buttons */}
                 {hoveredMessage === msg._id && !isDeleted && (
                   <div className={`flex items-center gap-1 mb-2 ${isOwn ? 'order-first' : 'order-last'}`}>
+                    <div className="relative">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowEmojiPicker(
+                            showEmojiPicker === msg._id ? null : msg._id
+                          );
+                        }}
+                        className="text-gray-400 hover:text-yellow-500 text-sm transition"
+                        title="React"
+                      >
+                        😊
+                      </button>
+
+                      {/* Emoji picker popup */}
+                      {showEmojiPicker === msg._id && (
+                        <div
+                          className={`absolute bottom-8 bg-white rounded-full shadow-lg border border-gray-200 flex gap-1 px-2 py-1 z-50 ${
+                            isOwn ? 'right-0' : 'left-0'
+                          }`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {EMOJI_LIST.map((emoji) => (
+                            <button
+                              key={emoji}
+                              onClick={() => handleReaction(msg._id, emoji)}
+                              className="text-lg hover:scale-125 transition-transform"
+                              title={emoji}
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
                     <button
                       onClick={() => handleReply(msg)}
                       className="text-gray-400 hover:text-blue-500 text-sm transition"
@@ -243,6 +305,7 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
                     >
                       ↩️
                     </button>
+
                     {isOwn && (
                       <button
                         onClick={() => handleDeleteMessage(msg._id)}
@@ -255,64 +318,87 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
                   </div>
                 )}
 
-                <div
-                  className={`px-4 py-2 rounded-2xl text-sm ${
-                    isDeleted
-                      ? 'bg-gray-200 text-gray-400 italic'
-                      : isOwn
-                      ? 'bg-blue-600 text-white rounded-br-none'
-                      : 'bg-white text-gray-800 shadow rounded-bl-none'
-                  }`}
-                >
-                  {/* Reply preview */}
-                  {!isDeleted && msg.replyTo && (
-                    <div className={`text-xs px-2 py-1 rounded-lg mb-2 border-l-2 ${
-                      isOwn
-                        ? 'bg-blue-500 border-blue-300 text-blue-100'
-                        : 'bg-gray-100 border-gray-400 text-gray-500'
-                    }`}>
-                      <p className="font-semibold">
-                        {msg.replyTo.sender?.name || 'Unknown'}
+                <div className="flex flex-col">
+                  <div
+                    className={`px-4 py-2 rounded-2xl text-sm ${
+                      isDeleted
+                        ? 'bg-gray-200 text-gray-400 italic'
+                        : isOwn
+                        ? 'bg-blue-600 text-white rounded-br-none'
+                        : 'bg-white text-gray-800 shadow rounded-bl-none'
+                    }`}
+                  >
+                    {/* Reply preview */}
+                    {!isDeleted && msg.replyTo && (
+                      <div className={`text-xs px-2 py-1 rounded-lg mb-2 border-l-2 ${
+                        isOwn
+                          ? 'bg-blue-500 border-blue-300 text-blue-100'
+                          : 'bg-gray-100 border-gray-400 text-gray-500'
+                      }`}>
+                        <p className="font-semibold">{msg.replyTo.sender?.name || 'Unknown'}</p>
+                        <p className="truncate">
+                          {msg.replyTo.isDeleted ? 'This message was deleted' : msg.replyTo.content}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Attachment */}
+                    {!isDeleted && msg.attachments?.length > 0 && (
+                      <img
+                        src={msg.attachments[0]}
+                        alt="attachment"
+                        className="rounded-lg max-w-full mb-1 cursor-pointer"
+                        onClick={() => window.open(msg.attachments[0], '_blank')}
+                      />
+                    )}
+
+                    {/* Content */}
+                    {msg.content}
+
+                    {/* Timestamp + ticks */}
+                    {!isDeleted && (
+                      <p className={`text-xs mt-1 flex items-center gap-1 ${
+                        isOwn ? 'justify-end text-blue-200' : 'text-gray-400'
+                      }`}>
+                        {new Date(msg.createdAt).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                        {isOwn && (
+                          <span>
+                            {isRead
+                              ? <span className="text-blue-300 font-bold">✓✓</span>
+                              : <span className="text-blue-200">✓</span>
+                            }
+                          </span>
+                        )}
                       </p>
-                      <p className="truncate">
-                        {msg.replyTo.isDeleted
-                          ? 'This message was deleted'
-                          : msg.replyTo.content}
-                      </p>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
-                  {/* Attachment */}
-                  {!isDeleted && msg.attachments && msg.attachments.length > 0 && (
-                    <img
-                      src={msg.attachments[0]}
-                      alt="attachment"
-                      className="rounded-lg max-w-full mb-1 cursor-pointer"
-                      onClick={() => window.open(msg.attachments[0], '_blank')}
-                    />
-                  )}
-
-                  {/* Message content */}
-                  {msg.content}
-
-                  {/* Timestamp + read receipt */}
-                  {!isDeleted && (
-                    <p className={`text-xs mt-1 flex items-center gap-1 ${
-                      isOwn ? 'justify-end text-blue-200' : 'text-gray-400'
-                    }`}>
-                      {new Date(msg.createdAt).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
+                  {/* Reactions display */}
+                  {Object.keys(groupedReactions).length > 0 && (
+                    <div className={`flex flex-wrap gap-1 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                      {Object.entries(groupedReactions).map(([emoji, users]) => {
+                        const hasReacted = msg.reactions?.some(
+                          (r) => r.emoji === emoji && r.userId === user.id
+                        );
+                        return (
+                          <button
+                            key={emoji}
+                            onClick={() => handleReaction(msg._id, emoji)}
+                            className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition ${
+                              hasReacted
+                                ? 'bg-blue-100 border-blue-300 text-blue-700'
+                                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                            }`}
+                            title={users.join(', ')}
+                          >
+                            {emoji} {users.length}
+                          </button>
+                        );
                       })}
-                      {isOwn && (
-                        <span>
-                          {isRead
-                            ? <span className="text-blue-300 font-bold">✓✓</span>
-                            : <span className="text-blue-200">✓</span>
-                          }
-                        </span>
-                      )}
-                    </p>
+                    </div>
                   )}
                 </div>
               </div>
