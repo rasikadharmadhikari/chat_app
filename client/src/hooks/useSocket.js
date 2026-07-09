@@ -13,11 +13,25 @@ const useSocket = (token) => {
   useEffect(() => {
     if (!token) return;
 
-    if (!socketInstance) {
-      socketInstance = io(SOCKET_URL, {
-        auth: { token },
-      });
+    if (socketInstance) {
+      socketInstance.disconnect();
+      socketInstance = null;
     }
+
+    socketInstance = io(SOCKET_URL, {
+      auth: { token },
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+
+    socketInstance.on('connect_error', (err) => {
+      if (err.message === 'Invalid token') {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
+    });
 
     socketRef.current = socketInstance;
 
