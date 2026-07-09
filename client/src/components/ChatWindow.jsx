@@ -7,9 +7,11 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [hoveredMessage, setHoveredMessage] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
   const { user } = useAuth();
   const bottomRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const inputRef = useRef(null);
 
   const otherUser = conversation.participants.find((p) => p._id !== user.id);
 
@@ -24,6 +26,7 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
     };
 
     fetchMessages();
+    setReplyingTo(null);
 
     if (socket) {
       socket.emit('joinConversation', conversation._id);
@@ -79,28 +82,38 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleDeleteMessage = async (messageId) => {
-  try {
-    await api.delete(`/messages/${messageId}`);
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg._id === messageId
-          ? { ...msg, content: 'This message was deleted', isDeleted: true, attachments: [] }
-          : msg
-      )
-    );
-    if (socket) {
-      socket.emit('deleteMessage', {
-        messageId,
-        conversationId: conversation._id,
-      });
-    }
+  const handleReply = (msg) => {
+    setReplyingTo(msg);
+    inputRef.current?.focus();
     setHoveredMessage(null);
-  } catch (err) {
-    console.error('Delete failed:', err.response?.data || err.message);
-    alert(err.response?.data?.message || 'Failed to delete message');
-  }
-};
+  };
+
+  const handleCancelReply = () => {
+    setReplyingTo(null);
+  };
+
+  const handleDeleteMessage = async (messageId) => {
+    try {
+      await api.delete(`/messages/${messageId}`);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg._id === messageId
+            ? { ...msg, content: 'This message was deleted', isDeleted: true, attachments: [] }
+            : msg
+        )
+      );
+      if (socket) {
+        socket.emit('deleteMessage', {
+          messageId,
+          conversationId: conversation._id,
+        });
+      }
+      setHoveredMessage(null);
+    } catch (err) {
+      console.error('Delete failed:', err.response?.data || err.message);
+      alert(err.response?.data?.message || 'Failed to delete message');
+    }
+  };
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
@@ -119,7 +132,9 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
           conversationId: conversation._id,
           content: file.type.startsWith('image/') ? '📷 Image' : '📎 File',
           attachments: [res.data.url],
+          replyTo: replyingTo?._id || null,
         });
+        setReplyingTo(null);
       }
     } catch (err) {
       console.error('File upload failed:', err);
@@ -128,11 +143,15 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
 
   const handleSend = () => {
     if (!newMessage.trim() || !socket) return;
+
     socket.emit('sendMessage', {
       conversationId: conversation._id,
       content: newMessage.trim(),
+      replyTo: replyingTo?._id || null,
     });
+
     setNewMessage('');
+    setReplyingTo(null);
     socket.emit('stopTyping', { conversationId: conversation._id });
   };
 
@@ -149,6 +168,12 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') handleSend();
+    if (e.key === 'Escape') handleCancelReply();
+  };
+
+  const getSenderName = (msg) => {
+    if (msg.sender._id === user.id || msg.sender === user.id) return 'You';
+    return msg.sender.name || otherUser?.name || 'Unknown';
   };
 
   return (
@@ -203,24 +228,35 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
             <div
               key={msg._id}
               className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
-              onMouseEnter={() => !isDeleted && isOwn && setHoveredMessage(msg._id)}
+              onMouseEnter={() => !isDeleted && setHoveredMessage(msg._id)}
               onMouseLeave={() => setHoveredMessage(null)}
             >
-              <div className="relative flex items-end gap-1">
+              <div className="relative flex items-end gap-1 max-w-xs">
 
-                {/* Delete button — shows on hover for own messages */}
-                {isOwn && hoveredMessage === msg._id && !isDeleted && (
-                  <button
-                    onClick={() => handleDeleteMessage(msg._id)}
-                    className="text-gray-400 hover:text-red-500 text-xs mb-2 transition"
-                    title="Delete message"
-                  >
-                    🗑️
-                  </button>
+                {/* Action buttons on hover */}
+                {hoveredMessage === msg._id && !isDeleted && (
+                  <div className={`flex items-center gap-1 mb-2 ${isOwn ? 'order-first' : 'order-last'}`}>
+                    <button
+                      onClick={() => handleReply(msg)}
+                      className="text-gray-400 hover:text-blue-500 text-sm transition"
+                      title="Reply"
+                    >
+                      ↩️
+                    </button>
+                    {isOwn && (
+                      <button
+                        onClick={() => handleDeleteMessage(msg._id)}
+                        className="text-gray-400 hover:text-red-500 text-sm transition"
+                        title="Delete"
+                      >
+                        🗑️
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 <div
-                  className={`max-w-xs px-4 py-2 rounded-2xl text-sm ${
+                  className={`px-4 py-2 rounded-2xl text-sm ${
                     isDeleted
                       ? 'bg-gray-200 text-gray-400 italic'
                       : isOwn
@@ -228,6 +264,25 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
                       : 'bg-white text-gray-800 shadow rounded-bl-none'
                   }`}
                 >
+                  {/* Reply preview */}
+                  {!isDeleted && msg.replyTo && (
+                    <div className={`text-xs px-2 py-1 rounded-lg mb-2 border-l-2 ${
+                      isOwn
+                        ? 'bg-blue-500 border-blue-300 text-blue-100'
+                        : 'bg-gray-100 border-gray-400 text-gray-500'
+                    }`}>
+                      <p className="font-semibold">
+                        {msg.replyTo.sender?.name || 'Unknown'}
+                      </p>
+                      <p className="truncate">
+                        {msg.replyTo.isDeleted
+                          ? 'This message was deleted'
+                          : msg.replyTo.content}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Attachment */}
                   {!isDeleted && msg.attachments && msg.attachments.length > 0 && (
                     <img
                       src={msg.attachments[0]}
@@ -237,8 +292,10 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
                     />
                   )}
 
+                  {/* Message content */}
                   {msg.content}
 
+                  {/* Timestamp + read receipt */}
                   {!isDeleted && (
                     <p className={`text-xs mt-1 flex items-center gap-1 ${
                       isOwn ? 'justify-end text-blue-200' : 'text-gray-400'
@@ -249,11 +306,10 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
                       })}
                       {isOwn && (
                         <span>
-                          {isRead ? (
-                            <span className="text-blue-300 font-bold">✓✓</span>
-                          ) : (
-                            <span className="text-blue-200">✓</span>
-                          )}
+                          {isRead
+                            ? <span className="text-blue-300 font-bold">✓✓</span>
+                            : <span className="text-blue-200">✓</span>
+                          }
                         </span>
                       )}
                     </p>
@@ -264,6 +320,7 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
           );
         })}
 
+        {/* Typing indicator */}
         {isTyping && (
           <div className="flex justify-start">
             <div className="bg-white px-4 py-2 rounded-2xl text-sm text-gray-500 shadow">
@@ -274,6 +331,29 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
 
         <div ref={bottomRef} />
       </div>
+
+      {/* Reply preview bar */}
+      {replyingTo && (
+        <div className="bg-blue-50 border-t border-blue-200 px-4 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-1 h-8 bg-blue-500 rounded" />
+            <div>
+              <p className="text-xs font-semibold text-blue-600">
+                Replying to {getSenderName(replyingTo)}
+              </p>
+              <p className="text-xs text-gray-500 truncate max-w-xs">
+                {replyingTo.content}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleCancelReply}
+            className="text-gray-400 hover:text-gray-600 text-lg ml-2"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Input bar */}
       <div className="bg-white p-4 flex gap-3 items-center shadow">
@@ -287,11 +367,12 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
           />
         </label>
         <input
+          ref={inputRef}
           type="text"
           value={newMessage}
           onChange={handleTyping}
           onKeyDown={handleKeyDown}
-          placeholder="Type a message..."
+          placeholder={replyingTo ? 'Type your reply...' : 'Type a message...'}
           className="flex-1 border border-gray-300 rounded-full px-4 py-2 text-sm outline-none focus:border-blue-500"
         />
         <button
@@ -304,4 +385,4 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
       </div>
     </div>
   );
-}  
+}

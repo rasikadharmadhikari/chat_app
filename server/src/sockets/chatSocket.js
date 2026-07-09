@@ -66,34 +66,36 @@ module.exports = (server) => {
     });
 
     // Send Message
-    socket.on(
-      'sendMessage',
-      async ({ conversationId, content, attachments }) => {
-        try {
-          const message = await Message.create({
-            conversationId,
-            sender: socket.userId,
-            content,
-            attachments: attachments || [],
-            readBy: [socket.userId],
-          });
+    socket.on('sendMessage', async ({ conversationId, content, attachments, replyTo }) => {
+  console.log('sendMessage event received:', conversationId, content);
+  try {
+    const message = await Message.create({
+      conversationId,
+      sender: socket.userId,
+      content,
+      attachments: attachments || [],
+      readBy: [socket.userId],
+      replyTo: replyTo || null,
+    });
 
-          await Conversation.findByIdAndUpdate(conversationId, {
-            lastMessage: message._id,
-          });
+    await Conversation.findByIdAndUpdate(conversationId, { lastMessage: message._id });
 
-          const populatedMessage = await message.populate(
-            'sender',
-            'name avatar'
-          );
+    const populatedMessage = await message.populate([
+      { path: 'sender', select: 'name avatar' },
+      {
+        path: 'replyTo',
+        select: 'content sender isDeleted',
+        populate: { path: 'sender', select: 'name' },
+      },
+    ]);
 
-          io.to(conversationId).emit('newMessage', populatedMessage);
-        } catch (err) {
-          console.error(err);
-          socket.emit('errorMessage', { message: err.message });
-        }
-      }
-    );
+    console.log('Emitting newMessage to room:', conversationId);
+    io.to(conversationId).emit('newMessage', populatedMessage);
+  } catch (err) {
+    console.error('sendMessage error:', err.message);
+    socket.emit('errorMessage', { message: err.message });
+  }
+});
 
     // Delete Message
     socket.on(

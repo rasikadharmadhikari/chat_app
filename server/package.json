@@ -4,9 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-  "dev": "nodemon server.js",
-  "start": "node server.js",
-  "test": "jest --testTimeout=30000 --forceExit"
+    "dev": "nodemon server.js",
+    "start": "node server.js",
+    "build": "node --check server.js && node --check src/models/User.js && node --check src/models/Conversation.js && node --check src/models/Message.js",
+    "test": "jest --testTimeout=30000 --forceExit"
 },
   "keywords": [],
   "author": "",

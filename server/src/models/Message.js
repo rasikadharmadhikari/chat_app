@@ -16,23 +16,21 @@ const messageSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    attachments: [
-      {
-        type: String,
-      },
-    ],
-    readBy: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-      },
-    ],
+    attachments: [{ type: String }],
+    readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     isDeleted: {
       type: Boolean,
       default: false,
     },
+    replyTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Message',
+      default: null,
+    },
   },
   { timestamps: true }
 );
+
 messageSchema.index({ conversationId: 1, createdAt: -1 });
+
 module.exports = mongoose.model('Message', messageSchema);
