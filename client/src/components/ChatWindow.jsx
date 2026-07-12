@@ -201,10 +201,10 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-screen bg-gray-100">
+    <div className="flex-1 flex flex-col h-screen bg-gray-100 dark:bg-gray-950">
 
       {/* Header */}
-      <div className="bg-white p-4 shadow flex items-center gap-3">
+      <div className="bg-white dark:bg-gray-900 p-4 shadow flex items-center gap-3">
         {conversation.isGroup ? (
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold text-lg">👥</div>
@@ -322,10 +322,10 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
                   <div
                     className={`px-4 py-2 rounded-2xl text-sm ${
                       isDeleted
-                        ? 'bg-gray-200 text-gray-400 italic'
+                        ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 italic'
                         : isOwn
                         ? 'bg-blue-600 text-white rounded-br-none'
-                        : 'bg-white text-gray-800 shadow rounded-bl-none'
+                        : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow rounded-bl-none'
                     }`}
                   >
                     {/* Reply preview */}
@@ -409,7 +409,7 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
         {/* Typing indicator */}
         {isTyping && (
           <div className="flex justify-start">
-            <div className="bg-white px-4 py-2 rounded-2xl text-sm text-gray-500 shadow">
+            <div className="bg-white dark:bg-gray-700 px-4 py-2 rounded-2xl text-sm text-gray-500 dark:text-gray-300 shadow">
               {otherUser?.name} is typing...
             </div>
           </div>
@@ -420,14 +420,14 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
 
       {/* Reply preview bar */}
       {replyingTo && (
-        <div className="bg-blue-50 border-t border-blue-200 px-4 py-2 flex items-center justify-between">
+        <div className="bg-blue-50 dark:bg-gray-800 border-t border-blue-200 dark:border-gray-700 px-4 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-1 h-8 bg-blue-500 rounded" />
             <div>
-              <p className="text-xs font-semibold text-blue-600">
+              <p className="text-xs font-semibold text-blue-600 dark:text-blue-400">
                 Replying to {getSenderName(replyingTo)}
               </p>
-              <p className="text-xs text-gray-500 truncate max-w-xs">
+              <p className="text-xs text-gray-500 dark:text-gray-300 truncate max-w-xs">
                 {replyingTo.content}
               </p>
             </div>
@@ -442,7 +442,7 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
       )}
 
       {/* Input bar */}
-      <div className="bg-white p-4 flex gap-3 items-center shadow">
+      <div className="bg-white dark:bg-gray-900 p-4 flex gap-3 items-center shadow">
         <label className="cursor-pointer text-gray-500 hover:text-blue-600 text-xl">
           📎
           <input
@@ -459,7 +459,7 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
           onChange={handleTyping}
           onKeyDown={handleKeyDown}
           placeholder={replyingTo ? 'Type your reply...' : 'Type a message...'}
-          className="flex-1 border border-gray-300 rounded-full px-4 py-2 text-sm outline-none focus:border-blue-500"
+          className="flex-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-full px-4 py-2 text-sm outline-none focus:border-blue-500"
         />
         <button
           onClick={handleSend}
