@@ -3,12 +3,13 @@ const Message = require('../models/Message');
 
 const send = async (req, res) => {
   try {
-    const { conversationId, content, attachments } = req.body;
+    const { conversationId, content, attachments, replyTo } = req.body;
     const message = await sendMessage({
       conversationId,
       sender: req.user.id,
       content,
       attachments,
+      replyTo,
     });
     res.status(201).json(message);
   } catch (err) {
@@ -55,4 +56,33 @@ const deleteMessage = async (req, res) => {
   }
 };
 
-module.exports = { send, list, deleteMessage };
+const searchMessages = async (req, res) => {
+  try {
+    const { query, conversationId } = req.query;
+
+    if (!query || query.trim().length < 2) {
+      return res.status(400).json({ message: 'Search query too short' });
+    }
+
+    const searchFilter = {
+      $text: { $search: query },
+      isDeleted: false,
+    };
+
+    if (conversationId) {
+      searchFilter.conversationId = conversationId;
+    }
+
+    const messages = await Message.find(searchFilter)
+      .sort({ score: { $meta: 'textScore' } })
+      .limit(20)
+      .populate('sender', 'name avatar')
+      .populate('conversationId', 'participants isGroup groupName');
+
+    res.status(200).json(messages);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+module.exports = { send, list, deleteMessage, searchMessages };

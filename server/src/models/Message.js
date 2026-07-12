@@ -39,5 +39,5 @@ const messageSchema = new mongoose.Schema(
 );
 
 messageSchema.index({ conversationId: 1, createdAt: -1 });
-
+messageSchema.index({ content: 'text' });
 module.exports = mongoose.model('Message', messageSchema);

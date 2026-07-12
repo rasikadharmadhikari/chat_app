@@ -1,3 +1,4 @@
+import SearchMessages from './SearchMessages';
 import { useEffect, useRef, useState } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -15,6 +16,7 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
   const bottomRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const inputRef = useRef(null);
+  const [showSearch, setShowSearch] = useState(false);
 
   const otherUser = conversation.participants.find((p) => p._id !== user.id);
 
@@ -204,38 +206,60 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
     <div className="flex-1 flex flex-col h-screen bg-gray-100 dark:bg-gray-950">
 
       {/* Header */}
-      <div className="bg-white dark:bg-gray-900 p-4 shadow flex items-center gap-3">
-        {conversation.isGroup ? (
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold text-lg">👥</div>
-            <div>
-              <p className="font-semibold">{conversation.groupName}</p>
-              <p className="text-xs text-gray-500">{conversation.participants.length} members</p>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold overflow-hidden">
-                {otherUser?.avatar ? (
-                  <img src={otherUser.avatar} alt={otherUser.name} className="w-full h-full object-cover" />
-                ) : (
-                  otherUser?.name?.charAt(0).toUpperCase()
-                )}
-              </div>
-              <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
-                isOnline(otherUser?._id) ? 'bg-green-400' : 'bg-gray-400'
-              }`} />
-            </div>
-            <div>
-              <p className="font-semibold">{otherUser?.name}</p>
-              <p className="text-xs text-gray-500">
-                {isOnline(otherUser?._id) ? '🟢 Online' : '⚫ Offline'}
-              </p>
-            </div>
-          </div>
-        )}
+<div className="bg-white dark:bg-gray-900 p-4 shadow flex items-center justify-between gap-3">
+  <div className="flex items-center gap-3">
+    {conversation.isGroup ? (
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold text-lg">👥</div>
+        <div>
+          <p className="font-semibold dark:text-white">{conversation.groupName}</p>
+          <p className="text-xs text-gray-500">{conversation.participants.length} members</p>
+        </div>
       </div>
+    ) : (
+      <div className="flex items-center gap-3">
+        <div className="relative">
+          <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold overflow-hidden">
+            {otherUser?.avatar ? (
+              <img src={otherUser.avatar} alt={otherUser.name} className="w-full h-full object-cover" />
+            ) : (
+              otherUser?.name?.charAt(0).toUpperCase()
+            )}
+          </div>
+          <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+            isOnline(otherUser?._id) ? 'bg-green-400' : 'bg-gray-400'
+          }`} />
+        </div>
+        <div>
+          <p className="font-semibold dark:text-white">{otherUser?.name}</p>
+          <p className="text-xs text-gray-500">
+            {isOnline(otherUser?._id) ? '🟢 Online' : '⚫ Offline'}
+          </p>
+        </div>
+      </div>
+    )}
+  </div>
+
+  {/* Search button */}
+  <button
+    onClick={() => setShowSearch(true)}
+    className="text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+    title="Search messages"
+  >
+    🔍
+  </button>
+</div>
+
+{/* Search modal */}
+{showSearch && (
+  <SearchMessages
+    conversationId={conversation._id}
+    onClose={() => setShowSearch(false)}
+    onSelectMessage={(msg) => {
+      setShowSearch(false);
+    }}
+  />
+)}
 
       {/* Messages */}
       <div

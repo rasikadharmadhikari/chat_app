@@ -4,11 +4,19 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import SearchBar from './SearchBar';
+import SearchMessages from './SearchMessages';
 import CreateGroupModal from './CreateGroupModal';
 
-export default function Sidebar({ onSelectConversation, selectedId, isOnline, socket }) {
+export default function Sidebar({
+  onSelectConversation,
+  selectedId,
+  isOnline,
+  socket,
+}) {
   const [conversations, setConversations] = useState([]);
   const [showGroupModal, setShowGroupModal] = useState(false);
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+
   const { user, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -32,19 +40,25 @@ export default function Sidebar({ onSelectConversation, selectedId, isOnline, so
     socket.on('newMessage', (msg) => {
       setConversations((prev) => {
         const exists = prev.find((c) => c._id === msg.conversationId);
+
         if (!exists) {
           fetchConversations();
           return prev;
         }
+
         return prev.map((conv) => {
           if (conv._id === msg.conversationId) {
             const isSelected = conv._id === selectedId;
+
             return {
               ...conv,
               lastMessage: msg,
-              unreadCount: isSelected ? 0 : (conv.unreadCount || 0) + 1,
+              unreadCount: isSelected
+                ? 0
+                : (conv.unreadCount || 0) + 1,
             };
           }
+
           return conv;
         });
       });
@@ -53,7 +67,9 @@ export default function Sidebar({ onSelectConversation, selectedId, isOnline, so
     socket.on('messagesRead', ({ conversationId }) => {
       setConversations((prev) =>
         prev.map((conv) =>
-          conv._id === conversationId ? { ...conv, unreadCount: 0 } : conv
+          conv._id === conversationId
+            ? { ...conv, unreadCount: 0 }
+            : conv
         )
       );
     });
@@ -68,87 +84,145 @@ export default function Sidebar({ onSelectConversation, selectedId, isOnline, so
     if (isNew) {
       setConversations((prev) => {
         const exists = prev.find((c) => c._id === conv._id);
-        if (!exists) return [{ ...conv, unreadCount: 0 }, ...prev];
+
+        if (!exists) {
+          return [{ ...conv, unreadCount: 0 }, ...prev];
+        }
+
         return prev;
       });
     }
+
     setConversations((prev) =>
-      prev.map((c) => c._id === conv._id ? { ...c, unreadCount: 0 } : c)
+      prev.map((c) =>
+        c._id === conv._id
+          ? { ...c, unreadCount: 0 }
+          : c
+      )
     );
+
     onSelectConversation(conv);
   };
 
   const getConversationDisplay = (conv) => {
     if (conv.isGroup) {
-      return { name: conv.groupName, avatar: null, isGroup: true };
+      return {
+        name: conv.groupName,
+        avatar: null,
+        isGroup: true,
+      };
     }
-    const other = conv.participants.find((p) => p._id !== user.id);
-    return { name: other?.name, avatar: other?.avatar, isGroup: false, otherUser: other };
+
+    const other = conv.participants.find(
+      (p) => p._id !== user.id
+    );
+
+    return {
+      name: other?.name,
+      avatar: other?.avatar,
+      isGroup: false,
+      otherUser: other,
+    };
   };
 
   return (
     <div className="w-72 bg-gray-900 dark:bg-gray-950 text-white h-screen flex flex-col">
-
-      {/* Header */}
+            {/* Header */}
       <div className="p-4 border-b border-gray-700 dark:border-gray-800 flex justify-between items-center">
         <h2 className="text-lg font-bold">Chats</h2>
+
         <div className="flex items-center gap-2">
-          {/* Dark mode toggle */}
+          {/* Dark Mode Toggle */}
           <button
             onClick={toggleTheme}
             className="text-lg hover:scale-110 transition-transform"
-            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
           >
-            {isDark ? '☀️' : '🌙'}
+            {isDark ? "☀️" : "🌙"}
           </button>
+
+          {/* Global Search */}
+          <button
+            onClick={() => setShowGlobalSearch(true)}
+            className="text-gray-400 hover:text-white text-lg transition"
+            title="Search all messages"
+          >
+            🔍
+          </button>
+
+          {/* Create Group */}
           <button
             onClick={() => setShowGroupModal(true)}
             className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-lg"
           >
             + Group
           </button>
+
+          {/* Logout */}
           <button
             onClick={logout}
-            className="text-xs text-gray-400 hover:text-white"
+            className="text-xs text-gray-400 hover:text-white transition"
           >
             Logout
           </button>
         </div>
       </div>
 
-      {/* Profile area */}
+      {/* Profile */}
       <div
         className="p-3 border-b border-gray-700 dark:border-gray-800 flex items-center gap-3 cursor-pointer hover:bg-gray-800 dark:hover:bg-gray-900 transition"
-        onClick={() => navigate('/profile')}
+        onClick={() => navigate("/profile")}
       >
         <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm overflow-hidden flex-shrink-0">
           {user.avatar ? (
-            <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+            <img
+              src={user.avatar}
+              alt={user.name}
+              className="w-full h-full object-cover"
+            />
           ) : (
             user.name?.charAt(0).toUpperCase()
           )}
         </div>
+
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold truncate">{user.name}</p>
-          <p className="text-xs text-gray-400">View Profile →</p>
+          <p className="text-sm font-semibold truncate">
+            {user.name}
+          </p>
+
+          <p className="text-xs text-gray-400">
+            View Profile →
+          </p>
         </div>
       </div>
 
-      {/* Search */}
-      <SearchBar onStartConversation={handleSelectConversation} />
+      {/* Search User */}
+      <SearchBar
+        onStartConversation={handleSelectConversation}
+      />
 
-      {/* Conversation list */}
+      {/* Conversation List */}
+            {/* Conversation List */}
       <div className="flex-1 overflow-y-auto">
         {conversations.length === 0 ? (
           <div className="p-4 text-center">
-            <p className="text-gray-400 text-sm">No conversations yet.</p>
-            <p className="text-gray-500 text-xs mt-1">Search for a user to start chatting!</p>
+            <p className="text-gray-400 text-sm">
+              No conversations yet.
+            </p>
+
+            <p className="text-gray-500 text-xs mt-1">
+              Search for a user to start chatting!
+            </p>
           </div>
         ) : (
           conversations.map((conv) => {
             const display = getConversationDisplay(conv);
             const isSelected = conv._id === selectedId;
-            const online = !display.isGroup && isOnline(display.otherUser?._id);
+
+            const online =
+              !display.isGroup &&
+              isOnline(display.otherUser?._id);
+
             const unread = conv.unreadCount || 0;
 
             return (
@@ -156,65 +230,118 @@ export default function Sidebar({ onSelectConversation, selectedId, isOnline, so
                 key={conv._id}
                 onClick={() => handleSelectConversation(conv)}
                 className={`p-4 cursor-pointer border-b border-gray-800 dark:border-gray-900 hover:bg-gray-700 dark:hover:bg-gray-800 transition ${
-                  isSelected ? 'bg-gray-700 dark:bg-gray-800' : ''
+                  isSelected
+                    ? "bg-gray-700 dark:bg-gray-800"
+                    : ""
                 }`}
               >
                 <div className="flex items-center gap-3">
+
+                  {/* Avatar */}
                   <div className="relative">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${
-                      display.isGroup ? 'bg-purple-500 text-lg' : 'bg-blue-500'
-                    }`}>
-                      {display.isGroup ? '👥' : (
-                        display.avatar ? (
-                          <img src={display.avatar} alt={display.name} className="w-full h-full rounded-full object-cover" />
-                        ) : (
-                          display.name?.charAt(0).toUpperCase()
-                        )
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold overflow-hidden ${
+                        display.isGroup
+                          ? "bg-purple-500 text-lg"
+                          : "bg-blue-500"
+                      }`}
+                    >
+                      {display.isGroup ? (
+                        "👥"
+                      ) : display.avatar ? (
+                        <img
+                          src={display.avatar}
+                          alt={display.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        display.name?.charAt(0).toUpperCase()
                       )}
                     </div>
+
                     {!display.isGroup && (
-                      <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-gray-900 ${
-                        online ? 'bg-green-400' : 'bg-gray-500'
-                      }`} />
+                      <span
+                        className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-gray-900 ${
+                          online
+                            ? "bg-green-400"
+                            : "bg-gray-500"
+                        }`}
+                      />
                     )}
                   </div>
 
+                  {/* Name + Last Message */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1">
-                      <p className={`text-sm ${unread > 0 ? 'font-bold text-white' : 'font-semibold'}`}>
+
+                    <div className="flex items-center gap-2">
+
+                      <p
+                        className={`truncate ${
+                          unread > 0
+                            ? "font-bold text-white"
+                            : "font-semibold"
+                        }`}
+                      >
                         {display.name}
                       </p>
+
                       {display.isGroup && (
-                        <span className="text-xs text-purple-400">Group</span>
+                        <span className="text-xs bg-purple-600 px-2 py-0.5 rounded-full">
+                          Group
+                        </span>
                       )}
                     </div>
-                    <p className={`text-xs truncate ${unread > 0 ? 'text-white' : 'text-gray-400'}`}>
-                      {conv.lastMessage?.content || 'No messages yet'}
+
+                    <p
+                      className={`text-xs truncate ${
+                        unread > 0
+                          ? "text-white"
+                          : "text-gray-400"
+                      }`}
+                    >
+                      {conv.lastMessage?.content ||
+                        "No messages yet"}
                     </p>
                   </div>
 
+                  {/* Unread Badge */}
                   {unread > 0 && (
-                    <div className="flex-shrink-0 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">
-                        {unread > 9 ? '9+' : unread}
+                    <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-bold text-white">
+                        {unread > 9 ? "9+" : unread}
                       </span>
                     </div>
                   )}
+
                 </div>
               </div>
             );
           })
         )}
       </div>
-
+            {/* Create Group Modal */}
       {showGroupModal && (
         <CreateGroupModal
           onClose={() => setShowGroupModal(false)}
           onGroupCreated={(conv) => {
-            setConversations((prev) => [{ ...conv, unreadCount: 0 }, ...prev]);
+            setConversations((prev) => [
+              {
+                ...conv,
+                unreadCount: 0,
+              },
+              ...prev,
+            ]);
+
             handleSelectConversation(conv);
             setShowGroupModal(false);
           }}
+        />
+      )}
+
+      {/* Global Message Search Modal */}
+      {showGlobalSearch && (
+        <SearchMessages
+          onClose={() => setShowGlobalSearch(false)}
         />
       )}
     </div>
