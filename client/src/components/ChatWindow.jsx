@@ -18,9 +18,9 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
   const typingTimeoutRef = useRef(null);
   const inputRef = useRef(null);
   const [showSearch, setShowSearch] = useState(false);
+  
   const [copiedMessage, setCopiedMessage] = useState(null);
-  const [copiedMessage, setCopiedMessage] = useState(null);
-const [forwardingMessage, setForwardingMessage] = useState(null);
+  const [forwardingMessage, setForwardingMessage] = useState(null);
 
   const otherUser = conversation.participants.find((p) => p._id !== user.id);
 
