@@ -400,7 +400,17 @@ const [forwardingMessage, setForwardingMessage] = useState(null);
                     )}
 
                     {/* Content */}
-                    {msg.content}
+                    {/* Content */}
+{msg.content.startsWith('↪ Forwarded:') ? (
+  <div>
+    <p className={`text-xs mb-1 ${isOwn ? 'text-blue-200' : 'text-gray-400'}`}>
+      ↪ Forwarded
+    </p>
+    <p>{msg.content.replace('↪ Forwarded: ', '')}</p>
+  </div>
+) : (
+  msg.content
+)}
 
                     {/* Timestamp + ticks */}
                     {!isDeleted && (
