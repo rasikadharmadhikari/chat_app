@@ -2,6 +2,7 @@ import SearchMessages from './SearchMessages';
 import { useEffect, useRef, useState } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import ForwardMessageModal from './ForwardMessageModal';
 
 const EMOJI_LIST = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
@@ -17,6 +18,9 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
   const typingTimeoutRef = useRef(null);
   const inputRef = useRef(null);
   const [showSearch, setShowSearch] = useState(false);
+  const [copiedMessage, setCopiedMessage] = useState(null);
+  const [copiedMessage, setCopiedMessage] = useState(null);
+const [forwardingMessage, setForwardingMessage] = useState(null);
 
   const otherUser = conversation.participants.find((p) => p._id !== user.id);
 
@@ -283,65 +287,84 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
             >
               <div className="relative flex items-end gap-1 max-w-xs">
 
-                {/* Action buttons */}
                 {hoveredMessage === msg._id && !isDeleted && (
-                  <div className={`flex items-center gap-1 mb-2 ${isOwn ? 'order-first' : 'order-last'}`}>
-                    <div className="relative">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowEmojiPicker(
-                            showEmojiPicker === msg._id ? null : msg._id
-                          );
-                        }}
-                        className="text-gray-400 hover:text-yellow-500 text-sm transition"
-                        title="React"
-                      >
-                        😊
-                      </button>
+  <div className={`flex items-center gap-1 mb-2 ${isOwn ? 'order-first' : 'order-last'}`}>
 
-                      {/* Emoji picker popup */}
-                      {showEmojiPicker === msg._id && (
-                        <div
-                          className={`absolute bottom-8 bg-white rounded-full shadow-lg border border-gray-200 flex gap-1 px-2 py-1 z-50 ${
-                            isOwn ? 'right-0' : 'left-0'
-                          }`}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {EMOJI_LIST.map((emoji) => (
-                            <button
-                              key={emoji}
-                              onClick={() => handleReaction(msg._id, emoji)}
-                              className="text-lg hover:scale-125 transition-transform"
-                              title={emoji}
-                            >
-                              {emoji}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+    {/* Copy */}
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(msg.content);
+        setCopiedMessage(msg._id);
+        setTimeout(() => setCopiedMessage(null), 2000);
+      }}
+      className="text-gray-400 hover:text-green-500 text-sm transition"
+      title="Copy message"
+    >
+      {copiedMessage === msg._id ? '✅' : '📋'}
+    </button>
 
-                    <button
-                      onClick={() => handleReply(msg)}
-                      className="text-gray-400 hover:text-blue-500 text-sm transition"
-                      title="Reply"
-                    >
-                      ↩️
-                    </button>
+    {/* Forward */}
+    <button
+      onClick={() => setForwardingMessage(msg)}
+      className="text-gray-400 hover:text-blue-500 text-sm transition"
+      title="Forward message"
+    >
+      ↪️
+    </button>
 
-                    {isOwn && (
-                      <button
-                        onClick={() => handleDeleteMessage(msg._id)}
-                        className="text-gray-400 hover:text-red-500 text-sm transition"
-                        title="Delete"
-                      >
-                        🗑️
-                      </button>
-                    )}
-                  </div>
-                )}
+    {/* React */}
+    <div className="relative">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setShowEmojiPicker(showEmojiPicker === msg._id ? null : msg._id);
+        }}
+        className="text-gray-400 hover:text-yellow-500 text-sm transition"
+        title="React"
+      >
+        😊
+      </button>
+      {showEmojiPicker === msg._id && (
+        <div
+          className={`absolute bottom-8 bg-white dark:bg-gray-800 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 flex gap-1 px-2 py-1 z-50 ${
+            isOwn ? 'right-0' : 'left-0'
+          }`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {EMOJI_LIST.map((emoji) => (
+            <button
+              key={emoji}
+              onClick={() => handleReaction(msg._id, emoji)}
+              className="text-lg hover:scale-125 transition-transform"
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
 
+    {/* Reply */}
+    <button
+      onClick={() => handleReply(msg)}
+      className="text-gray-400 hover:text-blue-500 text-sm transition"
+      title="Reply"
+    >
+      ↩️
+    </button>
+
+    {/* Delete (own messages only) */}
+    {isOwn && (
+      <button
+        onClick={() => handleDeleteMessage(msg._id)}
+        className="text-gray-400 hover:text-red-500 text-sm transition"
+        title="Delete"
+      >
+        🗑️
+      </button>
+    )}
+  </div>
+)}
                 <div className="flex flex-col">
                   <div
                     className={`px-4 py-2 rounded-2xl text-sm ${
@@ -493,6 +516,16 @@ export default function ChatWindow({ conversation, socket, isOnline }) {
           Send
         </button>
       </div>
+
+      {forwardingMessage && (
+        <ForwardMessageModal
+          message={forwardingMessage}
+          onClose={() => setForwardingMessage(null)}
+          onForwarded={() => {
+            setForwardingMessage(null);
+          }}
+        />
+      )}
     </div>
   );
 }
